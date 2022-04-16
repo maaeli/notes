@@ -39,21 +39,39 @@ fn sample_next(o: &mut SampleRequestOptions) -> f32 {
     o.tone()
 }
 
+pub struct Melody {
+    pub melody: Vec<Note>,
+}
+
+type BEATS_PER_MINUTE = u8;
+type SECONDS = u64;
+
+fn current_beat_number(time: SECONDS, bpm: BEATS_PER_MINUTE) -> usize {
+    println!("{}", time * bpm as u64);
+    (time * bpm as u64 / 60) as usize
+}
+
+impl Melody {
+    pub fn pitch_at(self, time: SECONDS, bpm: BEATS_PER_MINUTE) -> f32 {
+        self.melody[current_beat_number(time, bpm)].pitch_relative_to_a
+    }
+}
+
 pub struct SampleRequestOptions {
     pub sample_rate: f32,
     pub sample_clock: f32,
     pub nchannels: usize,
 
     pub note: Note,
-    pub melody: Vec<Note>,
+    pub melody: Melody,
 }
 
 impl SampleRequestOptions {
     fn tone(&self) -> f32 {
         let note_number: usize =
-            (self.sample_clock as i64 / 30000) as usize % self.melody.len() as usize;
+            (self.sample_clock as i64 / 30000) as usize % self.melody.melody.len() as usize;
         (self.sample_clock
-            * self.melody[note_number].pitch_relative_to_a
+            * self.melody.melody[note_number].pitch_relative_to_a
             * A_IN_HZ
             * 2.0
             * std::f32::consts::PI
@@ -109,16 +127,18 @@ where
         pitch_relative_to_a: 1.2,
         length: ToneLength::Full,
     };
-    let myMelody = vec![
-        Note {
-            pitch_relative_to_a: 1.19,
-            length: ToneLength::Full,
-        },
-        Note {
-            pitch_relative_to_a: 1.26,
-            length: ToneLength::Full,
-        },
-    ];
+    let myMelody = Melody {
+        melody: vec![
+            Note {
+                pitch_relative_to_a: 1.19,
+                length: ToneLength::Full,
+            },
+            Note {
+                pitch_relative_to_a: 1.26,
+                length: ToneLength::Full,
+            },
+        ],
+    };
     let mut request = SampleRequestOptions {
         sample_rate,
         sample_clock,
@@ -150,5 +170,38 @@ where
         for sample in frame.iter_mut() {
             *sample = value;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_tone_first_tone_of_melody() {
+        let my_melody = Melody {
+            melody: vec![Note {
+                pitch_relative_to_a: 1.0,
+                length: ToneLength::Full,
+            }],
+        };
+        assert_eq!(my_melody.pitch_at(0, 1), 1.0);
+    }
+
+    #[test]
+    fn get_tone_second_tone_of_melody() {
+        let my_melody = Melody {
+            melody: vec![
+                Note {
+                    pitch_relative_to_a: 1.0,
+                    length: ToneLength::Full,
+                },
+                Note {
+                    pitch_relative_to_a: 2.0,
+                    length: ToneLength::Full,
+                },
+            ],
+        };
+        assert_eq!(my_melody.pitch_at(61, 1), 2.0);
     }
 }
