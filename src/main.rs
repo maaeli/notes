@@ -16,6 +16,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ToneLength {
     Four,
     FourDot,
@@ -23,14 +24,35 @@ pub enum ToneLength {
     TwoDot,
     Full,
     FullDot,
+    Half,
+    HalfDot,
     Quarter,
     QuarterDot,
     Octet,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Note {
     pub pitch_relative_to_a: RelativeFrequency,
     pub length: ToneLength,
+}
+
+impl Note {
+    pub fn beats(self) -> f32 {
+        match self.length {
+            ToneLength::Four => 4.0,
+            ToneLength::FourDot => 6.0,
+            ToneLength::Two => 2.0,
+            ToneLength::TwoDot => 3.0,
+            ToneLength::Full => 1.0,
+            ToneLength::FullDot => 1.5,
+            ToneLength::Half => 0.5,
+            ToneLength::HalfDot => 0.75,
+            ToneLength::Quarter => 0.25,
+            ToneLength::QuarterDot => 0.25 + 0.0125,
+            ToneLength::Octet => 0.0125,
+        }
+    }
 }
 
 fn sample_next(o: &mut SampleRequestOptions) -> f32 {
@@ -39,6 +61,7 @@ fn sample_next(o: &mut SampleRequestOptions) -> f32 {
     o.tone()
 }
 
+#[derive(Debug, Clone)]
 pub struct Melody {
     pub melody: Vec<Note>,
 }
@@ -46,14 +69,43 @@ pub struct Melody {
 type BEATS_PER_MINUTE = u8;
 type SECONDS = u64;
 
-fn current_beat_number(time: SECONDS, bpm: BEATS_PER_MINUTE) -> usize {
+fn current_beat_number(time: SECONDS, bpm: BEATS_PER_MINUTE) -> f32 {
     println!("{}", time * bpm as u64);
-    (time * bpm as u64 / 60) as usize
+    (time * bpm as u64 / 60) as f32
 }
 
 impl Melody {
-    pub fn pitch_at(self, time: SECONDS, bpm: BEATS_PER_MINUTE) -> f32 {
-        self.melody[current_beat_number(time, bpm)].pitch_relative_to_a
+    pub fn pitch_at(&self, time: SECONDS, bpm: BEATS_PER_MINUTE) -> f32 {
+        println!(
+            "notenr {} ",
+            self.beat_to_note(current_beat_number(time, bpm))
+        );
+        println!(
+            "note {:?} ",
+            self.melody[self.beat_to_note(current_beat_number(time, bpm))]
+        );
+        self.melody[self.beat_to_note(current_beat_number(time, bpm))].pitch_relative_to_a
+    }
+
+    fn beat_to_note(&self, time_in_beat: f32) -> usize {
+        println!("we want {}", time_in_beat);
+        let beats: Vec<f32> = self
+            .melody
+            .iter()
+            .scan(0.0, |last_beat, &x| {
+                *last_beat += x.beats();
+                Some(*last_beat)
+            })
+            .collect();
+        println!(" dabeat {:?}", beats);
+
+        let too_early =
+            beats
+                .iter()
+                .map(|&x| x <= time_in_beat)
+                .fold(0, |acc, x| if x { acc + 1 } else { acc });
+        println!(" too_early {:?}", too_early);
+        too_early as usize
     }
 }
 
@@ -203,5 +255,21 @@ mod tests {
             ],
         };
         assert_eq!(my_melody.pitch_at(61, 1), 2.0);
+    }
+    #[test]
+    fn get_tone_first_tone_of_daa_da_melody() {
+        let my_melody = Melody {
+            melody: vec![
+                Note {
+                    pitch_relative_to_a: 1.0,
+                    length: ToneLength::Two,
+                },
+                Note {
+                    pitch_relative_to_a: 2.0,
+                    length: ToneLength::Full,
+                },
+            ],
+        };
+        assert_eq!(my_melody.pitch_at(61, 1), 1.0);
     }
 }
