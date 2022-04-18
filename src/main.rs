@@ -70,25 +70,15 @@ type BEATS_PER_MINUTE = u8;
 type SECONDS = u64;
 
 fn current_beat_number(time: SECONDS, bpm: BEATS_PER_MINUTE) -> f32 {
-    println!("{}", time * bpm as u64);
     (time * bpm as u64 / 60) as f32
 }
 
 impl Melody {
     pub fn pitch_at(&self, time: SECONDS, bpm: BEATS_PER_MINUTE) -> f32 {
-        println!(
-            "notenr {} ",
-            self.beat_to_note(current_beat_number(time, bpm))
-        );
-        println!(
-            "note {:?} ",
-            self.melody[self.beat_to_note(current_beat_number(time, bpm))]
-        );
         self.melody[self.beat_to_note(current_beat_number(time, bpm))].pitch_relative_to_a
     }
 
     fn beat_to_note(&self, time_in_beat: f32) -> usize {
-        println!("we want {}", time_in_beat);
         let beats: Vec<f32> = self
             .melody
             .iter()
@@ -97,14 +87,12 @@ impl Melody {
                 Some(*last_beat)
             })
             .collect();
-        println!(" dabeat {:?}", beats);
 
         let too_early =
             beats
                 .iter()
                 .map(|&x| x <= time_in_beat)
                 .fold(0, |acc, x| if x { acc + 1 } else { acc });
-        println!(" too_early {:?}", too_early);
         too_early as usize
     }
 }
@@ -120,10 +108,11 @@ pub struct SampleRequestOptions {
 
 impl SampleRequestOptions {
     fn tone(&self) -> f32 {
-        let note_number: usize =
-            (self.sample_clock as i64 / 30000) as usize % self.melody.melody.len() as usize;
+        let time_in_seconds: SECONDS = (self.sample_clock as i64 / 1000) as u64;
+        let bpm = 2;
+
         (self.sample_clock
-            * self.melody.melody[note_number].pitch_relative_to_a
+            * self.melody.pitch_at(time_in_seconds, bpm)
             * A_IN_HZ
             * 2.0
             * std::f32::consts::PI
@@ -175,18 +164,18 @@ where
     let sample_rate = config.sample_rate.0 as f32;
     let sample_clock = 0f32;
     let nchannels = config.channels as usize;
-    let myNote = Note {
+    let my_note = Note {
         pitch_relative_to_a: 1.2,
         length: ToneLength::Full,
     };
-    let myMelody = Melody {
+    let my_melody = Melody {
         melody: vec![
             Note {
-                pitch_relative_to_a: 1.19,
+                pitch_relative_to_a: 1.0,
                 length: ToneLength::Full,
             },
             Note {
-                pitch_relative_to_a: 1.26,
+                pitch_relative_to_a: 2.0,
                 length: ToneLength::Full,
             },
         ],
@@ -196,8 +185,8 @@ where
         sample_clock,
         nchannels,
 
-        note: myNote,
-        melody: myMelody,
+        note: my_note,
+        melody: my_melody,
     };
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
